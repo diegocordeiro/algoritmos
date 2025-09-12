@@ -12,10 +12,6 @@ Você pode optar por rodar os arquivos direto pelo `docker compose`, abrir o pro
 .
 ├── Dockerfile
 ├── docker-compose.yml
-├── .devcontainer/ (opcional, para VS Code)
-│   └── devcontainer.json
-├── .vscode/ (opcional, para tasks no VS Code)
-│   └── tasks.json
 └── codigo/
     └── hello.poti
 ```
@@ -46,7 +42,6 @@ USER gitpod
 ## docker-compose.yml
 
 ```yaml
-version: "3.8"
 
 services:
   potigol:
@@ -58,7 +53,7 @@ services:
     volumes:
       - ./codigo:/workspace
     working_dir: /workspace
-    entrypoint: ["potigol"]
+    entrypoint: ["/bin/bash", "-c", "while true; do sleep 1000; done"]
 
 ```
 
@@ -75,7 +70,7 @@ services:
 3. Execute seu programa diretamente:
 
    ```sh
-   docker compose run --rm --entrypoint /bin/bash potigol
+   docker exec -it potigol bashs
    ```
 
    ```sh
