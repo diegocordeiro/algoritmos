@@ -46,7 +46,7 @@ async def run_potigol(file: UploadFile = File(...)):
 
     except subprocess.TimeoutExpired:
         return JSONResponse({
-            "error": "Tempo limite excedido (o código não terminou em 10 segundos)"
+            "error": "Tempo limite excedido (o código não terminou em 30 segundos)"
         }, status_code=408)
 
     except Exception as e:
