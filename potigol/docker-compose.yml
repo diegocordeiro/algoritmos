@@ -2,12 +2,15 @@ services:
   potigol:
     build: .
     platform: linux/amd64
-    tty: true
-    stdin_open: true
     volumes:
       - ./codigo:/workspace
-    working_dir: /workspace
-    entrypoint: ["/bin/bash", "-c", "while true; do sleep 1000; done"]
+    ports:
+      - "8001:8000"
+    restart: unless-stopped
+
 
 # comando para escalar: docker compose up --scale potigol=X -d 
 # X é o número de instâncias que você quer rodar
+
+#/2 cc114f3821742bf69e288858
+
