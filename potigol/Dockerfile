@@ -22,7 +22,7 @@ WORKDIR /app
 COPY api.py /app/api.py
 
 # Expõe a porta
-EXPOSE 8000
+EXPOSE 8001
 
 # Mantém o processo rodando
-CMD ["python3", "-m", "uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python3", "-m", "uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8001"]
