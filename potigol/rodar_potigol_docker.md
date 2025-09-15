@@ -2,7 +2,7 @@
 # 🐳 Ambiente Potigol com Docker e VS Code
 
 Este guia mostra como configurar e executar programas **Potigol** usando **Docker** e integrando ao **VS Code**.
-Você pode optar por rodar os arquivos direto pelo `docker compose`, abrir o projeto dentro de um **Dev Container**, ou ainda rodar via **tasks do VS Code**.
+Você pode optar por rodar os arquivos direto pelo `docker compose` e abrir o projeto dentro de um **Dev Container**.
 
 ---
 
@@ -59,7 +59,7 @@ services:
 
 ---
 
-## Opção 1 – Executar direto pelo Docker Compose
+## Executar direto pelo Docker Compose
 
 1. Crie a pasta `codigo/` e coloque seu arquivo Potigol, por exemplo `hello.poti`.
 2. Construa a imagem:
