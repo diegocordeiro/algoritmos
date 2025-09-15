@@ -22,7 +22,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.post("/run")
+@app.post("/run/")
 async def run_potigol(file: UploadFile = File(...)):
     tmp_path = None
     try:
