@@ -8,9 +8,8 @@ services:
       - "8001:8000"
     restart: unless-stopped
 
-
-# comando para escalar: docker compose up --scale potigol=X -d 
-# X é o número de instâncias que você quer rodar
-
-#/2 cc114f3821742bf69e288858
+networks:
+  default:
+    external:
+      name: prod_net
 
