@@ -2,7 +2,6 @@ services:
   potigol:
     build: .
     platform: linux/amd64
-    mem_limit: 128m
     volumes:
       - ./codigo:/workspace
     ports:
@@ -12,6 +11,7 @@ services:
       resources:
         limits:
           cpus: '0.4'
+          mem_limit: 256m
 
 networks:
   default:
