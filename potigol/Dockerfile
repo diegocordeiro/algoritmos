@@ -13,7 +13,7 @@ RUN echo '#!/bin/bash\n\njava -jar /usr/local/lib/potigol.jar "$@"' > /usr/local
     && chmod +x /usr/local/bin/potigol
 
 # Instala FastAPI e Uvicorn
-RUN pip3 install --no-cache-dir fastapi uvicorn python-multipart
+RUN pip3 install --no-cache-dir fastapi uvicorn python-multipart "uvicorn[standard]"
 
 # Define pasta de trabalho
 WORKDIR /app
