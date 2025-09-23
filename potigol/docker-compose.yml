@@ -7,11 +7,8 @@ services:
     ports:
       - "8001:8001"
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          cpus: '0.4'
-          mem_limit: 256m
+    mem_limit: 256m
+    cpus: "0.4"
 
 networks:
   default:
