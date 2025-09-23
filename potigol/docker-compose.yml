@@ -2,12 +2,12 @@ services:
   potigol:
     build: .
     platform: linux/amd64
+    mem_limit: 128m
     volumes:
       - ./codigo:/workspace
     ports:
       - "8001:8001"
     restart: unless-stopped
-    mem_limit: 128m
     deploy:
       resources:
         limits:
