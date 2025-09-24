@@ -8,7 +8,6 @@ services:
       - "8001:8001"
     restart: unless-stopped
     mem_limit: 256m
-    cpus: "0.4"
 
 networks:
   default:

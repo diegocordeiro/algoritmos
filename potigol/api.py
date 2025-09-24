@@ -10,56 +10,58 @@ app = FastAPI()
 
 # Permitir requisições do Django
 origins = [
-    "http://localhost:8000",  # URL do seu frontend Django
+    "http://localhost:8000",
     "http://127.0.0.1:8000",
     "https://professordiegocordeiro.com.br"
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,   # ou ["*"] para liberar todos
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-@app.post("/run/")
-async def run_potigol(file: UploadFile = File(...)):
-    tmp_path = None
-    try:
-        fd, tmp_path = tempfile.mkstemp(suffix=".poti")
-        with os.fdopen(fd, "wb") as tmp:
-            tmp.write(await file.read())
-
-        result = subprocess.run(
-            ["potigol", tmp_path],
-            capture_output=True,
-            text=True,
-            timeout=30,
-            input=""   # força EOF
-        )
-
-        return JSONResponse({
-            "stdout": result.stdout,
-            "stderr": result.stderr,
-            "exit_code": result.returncode
-        })
-
-    except subprocess.TimeoutExpired:
-        return JSONResponse({
-            "error": "Tempo limite excedido (o código não terminou em 30 segundos)"
-        }, status_code=408)
-
-    except Exception as e:
-        import traceback
-        return JSONResponse({"error": traceback.format_exc()}, status_code=500)
-
-    finally:
-        if tmp_path and os.path.exists(tmp_path):
-            os.remove(tmp_path)
-
 # Guardar os processos em memória (id -> processo)
 processos = {}
+# Processo único (sem WebSocket)
+# Desativado para evitar problemas com múltiplos usuários
+# @app.post("/run/")
+# async def run_potigol(file: UploadFile = File(...)):
+#     tmp_path = None
+#     try:
+#         fd, tmp_path = tempfile.mkstemp(suffix=".poti")
+#         with os.fdopen(fd, "wb") as tmp:
+#             tmp.write(await file.read())
+
+#         # Usa timeout do Linux para matar loops infinitos
+#         result = subprocess.run(
+#             ["timeout", "30s", "potigol", tmp_path],
+#             capture_output=True,
+#             text=True,
+#             input=""  # força EOF
+#         )
+
+#         if result.returncode == 124:  # código do timeout
+#             return JSONResponse({
+#                 "error": "Processo encerrado automaticamente: possível loop infinito ou código mal executado. Revise seu código."
+#             }, status_code=408)
+
+#         return JSONResponse({
+#             "stdout": result.stdout,
+#             "stderr": result.stderr,
+#             "exit_code": result.returncode
+#         })
+
+#     except Exception as e:
+#         import traceback
+#         return JSONResponse({"error": traceback.format_exc()}, status_code=500)
+
+#     finally:
+#         if tmp_path and os.path.exists(tmp_path):
+#             os.remove(tmp_path)
+
 
 @app.post("/start/")
 async def start_potigol(file: UploadFile = File(...)):
@@ -67,8 +69,9 @@ async def start_potigol(file: UploadFile = File(...)):
     with os.fdopen(fd, "wb") as tmp:
         tmp.write(await file.read())
 
+    # Executa o processo com timeout do Linux
     proc = subprocess.Popen(
-        ["potigol", tmp_path],
+        ["timeout", "30s", "potigol", tmp_path],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -112,7 +115,10 @@ async def websocket_endpoint(websocket: WebSocket, session_id: int):
         while True:
             # se processo terminou, encerra a sessão
             if proc.poll() is not None:
-                await websocket.send_text("Processo finalizado")
+                if proc.returncode == 124:
+                    await websocket.send_text("⚠️ Processo encerrado automaticamente: possível loop infinito ou código mal executado. Revise seu código.")
+                else:
+                    await websocket.send_text("Processo finalizado")
                 break
 
             try:
@@ -131,7 +137,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: int):
     except Exception as e:
         await websocket.send_text(f"[ERRO] {e}")
     finally:
-        # remove o processo só quando realmente terminar
+        # garante que o processo seja encerrado mesmo em loop infinito
         if proc.poll() is None:
             proc.terminate()
         tmp_path = processos[session_id]["file"]
