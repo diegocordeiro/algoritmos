@@ -23,81 +23,84 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Guardar os processos em memória (id -> processo)
-processos = {}
-# Processo único (sem WebSocket)
-# Desativado para evitar problemas com múltiplos usuários
-# @app.post("/run/")
-# async def run_potigol(file: UploadFile = File(...)):
-#     tmp_path = None
-#     try:
-#         fd, tmp_path = tempfile.mkstemp(suffix=".poti")
-#         with os.fdopen(fd, "wb") as tmp:
-#             tmp.write(await file.read())
+# Fila global de jobs
+job_queue = asyncio.Queue()
+MAX_CONCURRENT = 2  # limite de processos simultâneos
+active_processes = {}
 
-#         # Usa timeout do Linux para matar loops infinitos
-#         result = subprocess.run(
-#             ["timeout", "30s", "potigol", tmp_path],
-#             capture_output=True,
-#             text=True,
-#             input=""  # força EOF
-#         )
+class Job:
+    def __init__(self, file: UploadFile):
+        self.file = file
+        self.session_id = None
+        self.proc = None
+        self.tmp_path = None
+        self.ready_event = asyncio.Event()  # sinaliza quando processo iniciou
 
-#         if result.returncode == 124:  # código do timeout
-#             return JSONResponse({
-#                 "error": "Processo encerrado automaticamente: possível loop infinito ou código mal executado. Revise seu código."
-#             }, status_code=408)
+@app.on_event("startup")
+async def startup_event():
+    async def worker():
+        while True:
+            job = await job_queue.get()
+            try:
+                while len(active_processes) >= MAX_CONCURRENT:
+                    await asyncio.sleep(0.5)
 
-#         return JSONResponse({
-#             "stdout": result.stdout,
-#             "stderr": result.stderr,
-#             "exit_code": result.returncode
-#         })
+                # Cria arquivo temporário
+                fd, tmp_path = tempfile.mkstemp(suffix=".poti")
+                with os.fdopen(fd, "wb") as tmp:
+                    tmp.write(await job.file.read())
 
-#     except Exception as e:
-#         import traceback
-#         return JSONResponse({"error": traceback.format_exc()}, status_code=500)
+                # Inicia processo
+                proc = subprocess.Popen(
+                    ["timeout", "30s", "potigol", tmp_path],
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    bufsize=1
+                )
 
-#     finally:
-#         if tmp_path and os.path.exists(tmp_path):
-#             os.remove(tmp_path)
+                job.session_id = proc.pid
+                job.proc = proc
+                job.tmp_path = tmp_path
 
+                active_processes[job.session_id] = job
+                job.ready_event.set()  # libera quem estava esperando
+            except Exception as e:
+                print(f"Erro ao processar job: {e}")
+            finally:
+                job_queue.task_done()
+
+    asyncio.create_task(worker())
 
 @app.post("/start/")
 async def start_potigol(file: UploadFile = File(...)):
-    fd, tmp_path = tempfile.mkstemp(suffix=".poti")
-    with os.fdopen(fd, "wb") as tmp:
-        tmp.write(await file.read())
+    job = Job(file)
+    await job_queue.put(job)
 
-    # Executa o processo com timeout do Linux
-    proc = subprocess.Popen(
-        ["timeout", "180s", "potigol", tmp_path],
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        bufsize=1
-    )
+    # Posição na fila
+    queue_list = list(job_queue._queue)
+    position = queue_list.index(job) + 1  # posição 1 = primeiro da fila
 
-    pid = proc.pid
-    processos[pid] = {
-        "process": proc,
-        "file": tmp_path
+    # Se já estiver pronto, a posição será 0
+    await job.ready_event.wait()
+    started = True
+
+    return {
+        "session_id": job.session_id,
+        "queue_position": 0 if started else position
     }
-
-    return {"session_id": pid}
-
 
 @app.websocket("/ws/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: int):
     await websocket.accept()
-
-    if session_id not in processos:
-        await websocket.send_text("Sessão inválida ou expirada")
+    if session_id not in active_processes:
+        await websocket.send_text("⚠️ Sessão inválida ou ainda na fila")
         await websocket.close()
         return
 
-    proc = processos[session_id]["process"]
+    job = active_processes[session_id]
+    proc = job.proc
 
     async def read_output(stream, prefix=""):
         loop = asyncio.get_running_loop()
@@ -107,41 +110,34 @@ async def websocket_endpoint(websocket: WebSocket, session_id: int):
                 break
             await websocket.send_text(prefix + line)
 
-    # inicia leitura de stdout e stderr
     asyncio.create_task(read_output(proc.stdout))
     asyncio.create_task(read_output(proc.stderr, prefix="[ERR] "))
 
     try:
         while True:
-            # se processo terminou, encerra a sessão
             if proc.poll() is not None:
                 if proc.returncode == 124:
-                    await websocket.send_text("⚠️ Processo encerrado automaticamente: possível loop infinito ou código mal executado. Revise seu código.")
+                    await websocket.send_text("⚠️ Loop infinito ou execução excedeu tempo de execução máximo.")
                 else:
-                    await websocket.send_text("Processo finalizado")
+                    await websocket.send_text("✅ Processo finalizado")
                 break
 
             try:
                 data = await asyncio.wait_for(websocket.receive_text(), timeout=1)
                 if data.strip().lower() == "exit":
                     proc.terminate()
-                    await websocket.send_text("Processo encerrado pelo usuário")
+                    await websocket.send_text("🔴 Encerrado pelo usuário")
                     break
                 else:
                     if proc.stdin:
                         proc.stdin.write(data + "\n")
                         proc.stdin.flush()
             except asyncio.TimeoutError:
-                continue  # apenas verifica novamente se o processo terminou
-
-    except Exception as e:
-        await websocket.send_text(f"[ERRO] {e}")
+                continue
     finally:
-        # garante que o processo seja encerrado mesmo em loop infinito
         if proc.poll() is None:
             proc.terminate()
-        tmp_path = processos[session_id]["file"]
-        if os.path.exists(tmp_path):
-            os.remove(tmp_path)
-        del processos[session_id]
+        if os.path.exists(job.tmp_path):
+            os.remove(job.tmp_path)
+        del active_processes[session_id]
         await websocket.close()
