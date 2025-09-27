@@ -71,7 +71,7 @@ async def start_potigol(file: UploadFile = File(...)):
 
     # Executa o processo com timeout do Linux
     proc = subprocess.Popen(
-        ["timeout", "120s", "potigol", tmp_path],
+        ["timeout", "60s", "potigol", tmp_path],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
