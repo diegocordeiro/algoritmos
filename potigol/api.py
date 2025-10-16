@@ -52,7 +52,7 @@ async def startup_event():
 
                 # Inicia processo
                 proc = subprocess.Popen(
-                    ["timeout", "30s", "potigol", tmp_path],
+                    ["timeout", "60s", "potigol", tmp_path],
                     stdin=subprocess.PIPE,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
