@@ -1,10 +1,12 @@
 #FROM gitpod/workspace-full (comentado para deixar de usar a imagem maior do Gitpod)
-FROM alpine:3.19
+#FROM alpine:3.19
+FROM openjdk:8-jdk-alpine
 
 USER root
 
 # Instala Python + dependências
-RUN apk add --no-cache python3 py3-pip openjdk17-jre-headless curl bash
+#RUN apk add --no-cache python3 py3-pip openjdk17-jre-headless curl bash
+RUN apk add --no-cache python3 py3-pip curl bash
 
 # Baixa o jar do Potigol
 RUN curl -L -o /usr/local/lib/potigol.jar https://github.com/potigol/potigol/releases/download/0.9.15/potigol.jar
